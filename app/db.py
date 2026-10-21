@@ -29,6 +29,7 @@ TABLE_DOCS: dict[str, str] = {
 
 BUSINESS_RULES = """\
 - Revenue = SUM(order_items.quantity * order_items.unit_price) over orders whose status != 'canceled'.
+  unit_price is what was actually charged, so discounts are already included.
   Never use products.price for revenue: it is today's list price, not what was charged.
 - Order counts use COUNT(DISTINCT orders.id). "Orders" excludes canceled ones unless the question says otherwise.
 - Average order value (AOV) = revenue / number of non-canceled orders.

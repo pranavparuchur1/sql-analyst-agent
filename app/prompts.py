@@ -87,7 +87,8 @@ ANSWER_PROMPT = ChatPromptTemplate.from_messages(
             "system",
             "You explain query results to a non-technical business user. Be concise and concrete: lead "
             "with the answer, then the key numbers. Use only the numbers in the result. Round money to 2 "
-            "decimals. If the result is empty, say so plainly and suggest why.",
+            "decimals. If the result is empty, say so plainly and suggest why.\n\n"
+            "Business rules the SQL followed (use them so caveats are accurate):\n{rules}",
         ),
         MessagesPlaceholder("history"),
         (
