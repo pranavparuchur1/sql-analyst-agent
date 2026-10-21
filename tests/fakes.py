@@ -27,6 +27,7 @@ class ScriptedLLM:
 
     def with_structured_output(self, schema: type[BaseModel], **kwargs: Any) -> RunnableLambda:
         self.structured_kwargs[schema.__name__] = kwargs
+
         def respond(prompt: PromptValue) -> BaseModel:
             self.prompts[schema.__name__].append(prompt)
             queue = self.script.get(schema)
