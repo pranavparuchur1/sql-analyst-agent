@@ -64,7 +64,7 @@ Dashed edges are decided at runtime: `classify` and `human_review` route with `C
 ## Quickstart
 
 ```bash
-git clone https://github.com/<you>/sql-analyst-agent && cd sql-analyst-agent
+git clone https://github.com/pranavparuchur1/sql-analyst-agent && cd sql-analyst-agent
 make setup              # venv + deps + seeds data/shop.db
 cp .env.example .env    # then set LLM_MODEL and the matching API key (or claude-cli:sonnet, below)
 make test               # 60 offline tests, no key needed
