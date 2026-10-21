@@ -52,5 +52,11 @@ def get_llm(settings: Settings | None = None, model: str | None = None) -> BaseC
     from langchain.chat_models import init_chat_model
 
     settings = settings or get_settings()
+    name = model or settings.llm_model
+    if name.startswith("claude-cli:"):
+        # Subscription mode: headless Claude Code instead of an API key (see app/claude_cli_llm.py).
+        from app.claude_cli_llm import ClaudeCLIModel
+
+        return ClaudeCLIModel(name.removeprefix("claude-cli:"))  # type: ignore[return-value]
     kwargs = {} if settings.llm_temperature is None else {"temperature": settings.llm_temperature}
-    return init_chat_model(model or settings.llm_model, **kwargs)
+    return init_chat_model(name, **kwargs)

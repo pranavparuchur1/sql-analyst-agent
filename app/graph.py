@@ -54,6 +54,7 @@ REFUSE_REPLY = (
 _TRANSIENT_NAMES = {
     "RateLimitError", "APIConnectionError", "APITimeoutError", "InternalServerError",
     "ServiceUnavailableError", "OverloadedError", "ConnectError", "ReadTimeout",
+    "TimeoutExpired",  # a hung `claude -p` subprocess (subscription mode)
 }  # fmt: skip
 
 
@@ -231,13 +232,13 @@ def build_graph(
         truncated = len(rows) >= settings.row_limit
         final = answer_chain.invoke(
             {"history": _history(state, window), "question": state["question"], "sql": state["sql"],
-             "columns": ", ".join(state.get("columns", [])), "row_count": len(rows),
+             "rules": BUSINESS_RULES, "columns": ", ".join(state.get("columns", [])), "row_count": len(rows),
              "truncated_note": f", truncated at {settings.row_limit}" if truncated else "",
              "rows": _format_rows(state.get("columns", []), rows)}
         )  # fmt: skip
         answer = final.answer
         if final.caveats:
-            answer += "\n\nNotes: " + "; ".join(final.caveats)
+            answer += "\n\nNotes:\n" + "\n".join(f"- {c.strip().rstrip('.')}." for c in final.caveats)
         # The SQL goes into memory with the answer, so a follow-up like "now only for
         # Texas" can modify the previous query instead of starting from scratch.
         return {"answer": answer, "status": "answered", "messages": [AIMessage(f"{answer}\n\n[SQL used]\n{state['sql']}")]}
