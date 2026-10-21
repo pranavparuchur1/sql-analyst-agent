@@ -1,5 +1,7 @@
 # sql-analyst-agent
 
+[![CI](https://github.com/pranavparuchur1/sql-analyst-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/pranavparuchur1/sql-analyst-agent/actions/workflows/ci.yml)
+
 A Text-to-SQL analyst agent built with **LangGraph**. A non-technical user asks a business question in plain English. The agent picks the relevant tables, writes SQL, checks it is safe, runs it, fixes its own errors, asks a human before running expensive queries, and answers in plain English with the SQL shown. It remembers the conversation, so "now only for Texas" works as a follow-up.
 
 ```

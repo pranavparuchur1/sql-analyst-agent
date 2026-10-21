@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.11 is the documented minimum; 3.12 matches the Docker image.
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      # Offline by design: tests use a scripted fake LLM and a freshly seeded DB, so no secrets are needed.
+      - run: python -m pytest -q
+      - run: python -m data.seed && python -m evals.run_evals --check-gold
