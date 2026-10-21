@@ -64,6 +64,8 @@ def test_happy_path(make_graph):
     sql_prompt = llm.prompt_text("SQLQuery")
     assert "CREATE TABLE products" in sql_prompt and "CREATE TABLE reviews" not in sql_prompt
     assert llm.remaining() == {}
+    # Native structured outputs, not forced tool calling (unsupported on some new models).
+    assert {k["method"] for k in llm.structured_kwargs.values()} == {"json_schema"}
 
 
 def test_self_correction_puts_exact_error_in_retry_prompt(make_graph):

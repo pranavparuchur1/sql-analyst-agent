@@ -23,6 +23,9 @@ class Settings(BaseSettings):
     # Unset by default: some newer models reject non-default temperatures. Set 0 for
     # older models when you want the most repeatable SQL.
     llm_temperature: float | None = None
+    # json_schema = the provider's native structured outputs (constrained decoding).
+    # Forced tool calling ('function_calling') isn't supported on some newer models.
+    structured_output_method: str = "json_schema"
 
     db_path: Path = ROOT / "data" / "shop.db"
     checkpoint_db: Path = ROOT / "data" / "checkpoints.db"

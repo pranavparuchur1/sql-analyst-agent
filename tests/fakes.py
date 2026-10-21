@@ -19,12 +19,14 @@ class ScriptedLLM:
         # Responses are queued per schema, so a test reads like the conversation it simulates.
         self.script: dict[type[BaseModel], list[Any]] = {k: list(v) for k, v in (script or {}).items()}
         self.prompts: dict[str, list[PromptValue]] = defaultdict(list)
+        self.structured_kwargs: dict[str, dict[str, Any]] = {}
 
     def add(self, schema: type[BaseModel], *responses: Any) -> ScriptedLLM:
         self.script.setdefault(schema, []).extend(responses)
         return self
 
-    def with_structured_output(self, schema: type[BaseModel], **_: Any) -> RunnableLambda:
+    def with_structured_output(self, schema: type[BaseModel], **kwargs: Any) -> RunnableLambda:
+        self.structured_kwargs[schema.__name__] = kwargs
         def respond(prompt: PromptValue) -> BaseModel:
             self.prompts[schema.__name__].append(prompt)
             queue = self.script.get(schema)

@@ -108,13 +108,14 @@ def build_graph(
     db = db or SQLiteDatabase(settings.db_path, timeout_s=settings.query_timeout_s, max_rows=settings.row_limit)
     checkpointer = checkpointer if checkpointer is not None else default_checkpointer(settings.checkpoint_db)
     window = settings.history_window
+    method = settings.structured_output_method
 
     # LCEL: `prompt | model` composes two Runnables into one. .invoke(dict) fills the
     # template, calls the model, and returns a validated Pydantic object.
-    router_chain = ROUTER_PROMPT | llm.with_structured_output(IntentDecision)
-    table_chain = TABLE_SELECTION_PROMPT | llm.with_structured_output(TableSelection)
-    sql_chain = SQL_PROMPT | llm.with_structured_output(SQLQuery)
-    answer_chain = ANSWER_PROMPT | llm.with_structured_output(FinalAnswer)
+    router_chain = ROUTER_PROMPT | llm.with_structured_output(IntentDecision, method=method)
+    table_chain = TABLE_SELECTION_PROMPT | llm.with_structured_output(TableSelection, method=method)
+    sql_chain = SQL_PROMPT | llm.with_structured_output(SQLQuery, method=method)
+    answer_chain = ANSWER_PROMPT | llm.with_structured_output(FinalAnswer, method=method)
 
     def normalize(sql: str) -> str:
         result = run_validator(sql, db.table_names(), dialect=db.dialect, row_limit=settings.row_limit)
