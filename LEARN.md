@@ -29,23 +29,23 @@ The key idea for interviews: **the LLM is an untrusted, fallible worker inside a
 
 | Concept | What it is, in plain English | Where |
 |---|---|---|
-| **LLM / chat model** | The text-generating model. `init_chat_model("anthropic:claude-...")` builds the right provider class from a string, so switching providers is a config change. | [config.py:49](app/config.py#L49), [:56](app/config.py#L56) |
+| **LLM / chat model** | The text-generating model. `init_chat_model("anthropic:claude-...")` builds the right provider class from a string, so switching providers is a config change. | [config.py:49](app/config.py#L49), [:62](app/config.py#L62) |
 | **Prompt template** | A reusable message list with `{slots}`. `ChatPromptTemplate.from_messages([("system", ...), ("human", "{question}")])`. | [prompts.py:16](app/prompts.py#L16), [:66](app/prompts.py#L66) |
 | **MessagesPlaceholder** | A slot that takes a whole *list* of messages (the chat history) rather than one string. | [prompts.py:77](app/prompts.py#L77) |
-| **LCEL pipe (`\|`)** | LangChain Expression Language. `prompt \| model` chains Runnables: the output of one feeds the next. The result is itself a Runnable with `.invoke()`. | [graph.py:115-118](app/graph.py#L115) |
-| **Structured output** | `llm.with_structured_output(SQLQuery)` makes the model return a validated Pydantic object instead of free text. The field descriptions are sent to the model as instructions. | [schemas.py:38](app/schemas.py#L38), [graph.py:117](app/graph.py#L117) |
+| **LCEL pipe (`\|`)** | LangChain Expression Language. `prompt \| model` chains Runnables: the output of one feeds the next. The result is itself a Runnable with `.invoke()`. | [graph.py:116-119](app/graph.py#L116) |
+| **Structured output** | `llm.with_structured_output(SQLQuery)` makes the model return a validated Pydantic object instead of free text. The field descriptions are sent to the model as instructions. | [schemas.py:38](app/schemas.py#L38), [graph.py:118](app/graph.py#L118) |
 | **Few-shot** | Example question → SQL pairs inserted into the prompt. They teach house style (aliases, date filters) better than more instructions would. | [prompts.py:64](app/prompts.py#L64) |
 | **State** | The shared "clipboard" every node reads and writes, defined as a `TypedDict`. | [state.py:17](app/state.py#L17) |
 | **Reducer** | A rule for *merging* a node's update into state. Default: overwrite. `add_messages`: append chat messages. `operator.add`: concatenate lists. | [state.py:20](app/state.py#L20), [:22](app/state.py#L22) |
-| **Node** | A plain function `state -> partial update dict`. | [graph.py:126](app/graph.py#L126) (`prepare_turn`), registered at [:272-284](app/graph.py#L272) |
-| **Edge** | "After node A, always run node B." | [graph.py:287](app/graph.py#L287) |
-| **Conditional edge** | "After node A, call this routing function and go wherever it says." The function is pure: state in, node name out. | [graph.py:260](app/graph.py#L260) (function), [:293](app/graph.py#L293) (wiring) |
-| **Command** | A node returns `Command(update={...}, goto="next")`, deciding *and* writing state in one step. The `Command[Literal[...]]` return type tells LangGraph the possible destinations. | [graph.py:137-141](app/graph.py#L137) |
-| **interrupt** | `interrupt(payload)` saves a checkpoint and pauses the run. The caller sees `payload`. Resuming with `Command(resume=x)` re-runs the node from the top, and `interrupt()` then returns `x`. | [graph.py:204](app/graph.py#L204) |
-| **Checkpointer** | Saves the full state after every step. `SqliteSaver` writes to disk, so threads survive restarts. Tests use `InMemorySaver`. | [graph.py:70](app/graph.py#L70), [:300](app/graph.py#L300) |
+| **Node** | A plain function `state -> partial update dict`. | [graph.py:127](app/graph.py#L127) (`prepare_turn`), registered at [:273-285](app/graph.py#L273) |
+| **Edge** | "After node A, always run node B." | [graph.py:288](app/graph.py#L288) |
+| **Conditional edge** | "After node A, call this routing function and go wherever it says." The function is pure: state in, node name out. | [graph.py:261](app/graph.py#L261) (function), [:294](app/graph.py#L294) (wiring) |
+| **Command** | A node returns `Command(update={...}, goto="next")`, deciding *and* writing state in one step. The `Command[Literal[...]]` return type tells LangGraph the possible destinations. | [graph.py:138-142](app/graph.py#L138) |
+| **interrupt** | `interrupt(payload)` saves a checkpoint and pauses the run. The caller sees `payload`. Resuming with `Command(resume=x)` re-runs the node from the top, and `interrupt()` then returns `x`. | [graph.py:205](app/graph.py#L205) |
+| **Checkpointer** | Saves the full state after every step. `SqliteSaver` writes to disk, so threads survive restarts. Tests use `InMemorySaver`. | [graph.py:71](app/graph.py#L71), [:301](app/graph.py#L301) |
 | **thread_id** | The key for one conversation in the checkpointer. Same thread_id = same memory. | [api.py:34](app/api.py#L34) |
 | **Streaming** | `graph.stream(..., stream_mode="updates")` yields `{node: update}` after each node, which is how the CLI shows steps live. | [cli.py:79](app/cli.py#L79) |
-| **RetryPolicy** | Re-runs a node on matching exceptions with exponential backoff. Here it's only for transient LLM errors (rate limits, timeouts). | [graph.py:67](app/graph.py#L67), [:276](app/graph.py#L276) |
+| **RetryPolicy** | Re-runs a node on matching exceptions with exponential backoff. Here it's only for transient LLM errors (rate limits, timeouts). | [graph.py:68](app/graph.py#L68), [:277](app/graph.py#L277) |
 | **Time travel** | `get_state_history()` lists every checkpoint. Invoking with an old checkpoint's config replays from that point and forks history. | [api.py:126](app/api.py#L126), [test_graph.py:235](tests/test_graph.py#L235) |
 
 ---
@@ -58,16 +58,16 @@ Two turns on thread `t1`: *"Top 5 products by revenue in 2025?"*, then *"now onl
 
 1. **API** `POST /ask` checks the thread isn't paused ([api.py:86](app/api.py#L86)), then calls `graph.invoke({"question": ...}, {"configurable": {"thread_id": "t1"}})`.
 2. **Checkpointer loads** thread `t1`. It's empty on the first turn.
-3. **`prepare_turn`** ([graph.py:126](app/graph.py#L126)) appends `HumanMessage(question)` to `messages` (the reducer appends) and resets every per-turn field. Without the reset, turn 2 would inherit turn 1's `attempts`, `sql` and approval.
-4. **`classify`** ([graph.py:137](app/graph.py#L137)) runs `ROUTER_PROMPT | llm.with_structured_output(IntentDecision)` and gets `intent="data_question"`. It returns `Command(goto="select_tables")`.
-5. **`select_tables`** ([graph.py:143](app/graph.py#L143)) sends the cheap `table_overview()` and gets back `["orders", "order_items", "products"]`. Then `schema_for(...)` fetches DDL plus 3 sample rows for only those tables. An unknown table name triggers a fallback to all tables ([:153](app/graph.py#L153)).
-6. **`generate_sql`** ([graph.py:159](app/graph.py#L159)) increments `attempts` to 1. The SQL prompt contains business rules, schema, few-shot examples, the history (empty) and the question. Suppose the model writes `SELECT SUM(revenue) FROM orders`.
-7. **`validate_sql`** ([graph.py:175](app/graph.py#L175)): the sqlglot checks pass (it is a SELECT on a known table), but `EXPLAIN` raises `no such column: revenue`. The node writes `error` and appends to `error_history`.
-8. **`route_after_validation`** ([graph.py:260](app/graph.py#L260)) sees an error with attempts 1 < 3, so it returns `"generate_sql"`.
-9. **`generate_sql` again**: `retry_feedback` ([graph.py:164](app/graph.py#L164)) now contains the failed SQL and the exact error. The model fixes it. `attempts` becomes 2.
+3. **`prepare_turn`** ([graph.py:127](app/graph.py#L127)) appends `HumanMessage(question)` to `messages` (the reducer appends) and resets every per-turn field. Without the reset, turn 2 would inherit turn 1's `attempts`, `sql` and approval.
+4. **`classify`** ([graph.py:138](app/graph.py#L138)) runs `ROUTER_PROMPT | llm.with_structured_output(IntentDecision)` and gets `intent="data_question"`. It returns `Command(goto="select_tables")`.
+5. **`select_tables`** ([graph.py:144](app/graph.py#L144)) sends the cheap `table_overview()` and gets back `["orders", "order_items", "products"]`. Then `schema_for(...)` fetches DDL plus 3 sample rows for only those tables. An unknown table name triggers a fallback to all tables ([:154](app/graph.py#L154)).
+6. **`generate_sql`** ([graph.py:160](app/graph.py#L160)) increments `attempts` to 1. The SQL prompt contains business rules, schema, few-shot examples, the history (empty) and the question. Suppose the model writes `SELECT SUM(revenue) FROM orders`.
+7. **`validate_sql`** ([graph.py:176](app/graph.py#L176)): the sqlglot checks pass (it is a SELECT on a known table), but `EXPLAIN` raises `no such column: revenue`. The node writes `error` and appends to `error_history`.
+8. **`route_after_validation`** ([graph.py:261](app/graph.py#L261)) sees an error with attempts 1 < 3, so it returns `"generate_sql"`.
+9. **`generate_sql` again**: `retry_feedback` ([graph.py:165](app/graph.py#L165)) now contains the failed SQL and the exact error. The model fixes it. `attempts` becomes 2.
 10. **`validate_sql`**: it passes, the validator adds a `LIMIT` if missing, and with 3 tables (< 4) no approval is needed. The router picks `"execute_sql"`.
-11. **`execute_sql`** ([graph.py:222](app/graph.py#L222)) runs on the read-only connection with the timeout and returns columns and rows. The router picks `"summarize"`.
-12. **`summarize`** ([graph.py:229](app/graph.py#L229)) produces a `FinalAnswer` and appends `AIMessage(answer + "[SQL used]" + sql)` ([:243](app/graph.py#L243)). Then END.
+11. **`execute_sql`** ([graph.py:223](app/graph.py#L223)) runs on the read-only connection with the timeout and returns columns and rows. The router picks `"summarize"`.
+12. **`summarize`** ([graph.py:230](app/graph.py#L230)) produces a `FinalAnswer` and appends `AIMessage(answer + "[SQL used]" + sql)` ([:244](app/graph.py#L244)). Then END.
 13. A checkpoint was saved after **every** step above. The API returns `status="answered"`.
 
 **Turn 2: "now only for Texas"**
@@ -77,7 +77,7 @@ Two turns on thread `t1`: *"Top 5 products by revenue in 2025?"*, then *"now onl
 3. `classify` sees the history, so it recognises a follow-up and labels it `data_question`.
 4. `generate_sql`'s prompt includes the last 6 history messages, *including the previous SQL*. The model adds `JOIN customers ... WHERE c.state = 'TX'`. That's now **4 tables**.
 5. `validate_sql` sets `needs_approval=True`, and the router sends it to `human_review`.
-6. **`human_review`** ([graph.py:200](app/graph.py#L200)) calls `interrupt({...sql, reason...})`. The run **stops**, the state is saved, and the API returns `needs_approval` with the payload.
+6. **`human_review`** ([graph.py:201](app/graph.py#L201)) calls `interrupt({...sql, reason...})`. The run **stops**, the state is saved, and the API returns `needs_approval` with the payload.
 7. Minutes or days later, `POST /approve {"approved": true}` calls `graph.invoke(Command(resume={...}))`. `human_review` runs again from the top, `interrupt()` returns the decision, and it returns `Command(goto="execute_sql")`.
 8. The rest of the turn is the same as turn 1, steps 11-13.
 
@@ -87,11 +87,11 @@ Two turns on thread `t1`: *"Top 5 products by revenue in 2025?"*, then *"now onl
 
 Think "Swiss cheese model": each layer has holes, but the holes don't line up.
 
-1. **Read-only connection** ([db.py:77](app/db.py#L77)). `file:...?mode=ro` means the *database itself* refuses writes. **Why:** this is the last line of defense if the validator has a bug. It's enforced by the engine, not by our code.
+1. **Read-only connection** ([db.py:78](app/db.py#L78)). `file:...?mode=ro` means the *database itself* refuses writes. **Why:** this is the last line of defense if the validator has a bug. It's enforced by the engine, not by our code.
 2. **sqlglot validator** ([validator.py:37](app/validator.py#L37)). It parses to an AST, allows exactly one statement, requires a `Query` root, walks the whole tree for write nodes (catching writes hidden in CTEs), and allows known tables or CTE names only. **Why:** read-only doesn't stop `ATTACH`, `PRAGMA` or access to tables you didn't intend to expose. The checks are deterministic and can't be prompt-injected, and their error messages are good retry feedback. It uses an AST and not a regex, because `deleted_flag` is not a `DELETE` ([test_validator.py:53](tests/test_validator.py#L53)).
 3. **Row limit** ([validator.py:83](app/validator.py#L83), plus `fetchmany` in db.py). **Why:** "show me all orders" shouldn't ship a million rows to the LLM, which costs tokens and loses context.
-4. **Timeout** ([db.py:133](app/db.py#L133)). SQLite calls the progress handler every 10k VM instructions, and returning 1 aborts the query. **Why:** an accidental cartesian join can run for minutes and pin a CPU.
-5. **Human approval** ([graph.py:187](app/graph.py#L187)). Queries over 4+ tables pause. **Why:** wide joins are where both cost and "plausible but wrong" answers concentrate. A human edit is re-validated, because humans make mistakes too ([test_graph.py:180](tests/test_graph.py#L180)).
+4. **Timeout** ([db.py:134](app/db.py#L134)). SQLite calls the progress handler every 10k VM instructions, and returning 1 aborts the query. **Why:** an accidental cartesian join can run for minutes and pin a CPU.
+5. **Human approval** ([graph.py:188](app/graph.py#L188)). Queries over 4+ tables pause. **Why:** wide joins are where both cost and "plausible but wrong" answers concentrate. A human edit is re-validated, because humans make mistakes too ([test_graph.py:180](tests/test_graph.py#L180)).
 
 Plus an overarching rule: **errors become feedback, not crashes.** Every DB error is caught and turned into retry feedback, and attempts are capped.
 
@@ -157,13 +157,13 @@ Column names don't encode business definitions. "Revenue" here means `SUM(quanti
 It has env-based config, a read-only DB, timeouts, persistence across restarts, a health check, a non-root Docker image and an offline test suite. Missing: auth and per-user table permissions, rate limiting, tracing (LangSmith), cost tracking, PII handling, and a larger human-reviewed eval set.
 
 **20. What was the hardest bug?**
-Two showed up only in a live smoke test. A newer Claude model rejects a non-default `temperature`, and it doesn't support forced tool calling, which is LangChain's default structured-output method for Anthropic. The fix was to make temperature optional and switch to `method="json_schema"`. The lesson: fakes test *your* logic, and you still need one live run to test the provider contract. A close second was making a *human-edited* query count as approved: the validator normalises SQL, so I compare normalised forms ([graph.py:186](app/graph.py#L186)).
+Two showed up only in a live smoke test. A newer Claude model rejects a non-default `temperature`, and it doesn't support forced tool calling, which is LangChain's default structured-output method for Anthropic. The fix was to make temperature optional and switch to `method="json_schema"`. The lesson: fakes test *your* logic, and you still need one live run to test the provider contract. A close second was making a *human-edited* query count as approved: the validator normalises SQL, so I compare normalised forms ([graph.py:187](app/graph.py#L187)).
 
 ---
 
 ## 6. Your 60-second pitch (memorise this)
 
-> "I built a Text-to-SQL analyst agent: a business user asks a question in English and gets an answer plus the SQL that produced it. It's a LangGraph state machine. It classifies the request, retrieves only the relevant schema in two steps, writes SQL, and validates it with a sqlglot AST checker before running it on a read-only connection with a timeout. If the SQL fails, the exact error goes back to the model, with retries capped at three. If a query joins four or more tables, the graph pauses with an interrupt for human approval, and that pause survives a server restart because state is checkpointed to SQLite. The same checkpointer gives conversation memory, so 'now only for Texas' modifies the previous query. The key design choice is that the LLM never makes safety or control-flow decisions: those are deterministic code. It has 54 offline tests with a scripted fake LLM, and an eval harness that measures execution accuracy by difficulty, first-try success and latency, and lets me compare models with one flag."
+> "I built a Text-to-SQL analyst agent: a business user asks a question in English and gets an answer plus the SQL that produced it. It's a LangGraph state machine. It classifies the request, retrieves only the relevant schema in two steps, writes SQL, and validates it with a sqlglot AST checker before running it on a read-only connection with a timeout. If the SQL fails, the exact error goes back to the model, with retries capped at three. If a query joins four or more tables, the graph pauses with an interrupt for human approval, and that pause survives a server restart because state is checkpointed to SQLite. The same checkpointer gives conversation memory, so 'now only for Texas' modifies the previous query. The key design choice is that the LLM never makes safety or control-flow decisions: those are deterministic code. It has 60 offline tests with a scripted fake LLM, and an eval harness that measures execution accuracy by difficulty, first-try success, latency and cost. Sonnet scored 20 out of 20, all first try, at about three cents a question. My honest takeaway is that the golden set is saturated, so the next step is a harder set that actually exercises the retry loop."
 
 ---
 
@@ -188,4 +188,4 @@ Each one touches a different concept. Write a test first, using `ScriptedLLM`.
 1. Run `make test` and read [tests/test_graph.py](tests/test_graph.py) first. Each test is a short story of one behavior.
 2. Read [app/graph.py](app/graph.py) top to bottom alongside section 3 of this guide.
 3. Run `git log --oneline` and check out each commit. Stage 3 (`bbb91f6`) is the straight-line graph, with no retries or routing yet. Diff it against the next commit to see exactly what loops, Command and interrupt add.
-4. Get an API key, `make eval`, and read `evals/report.md`. Then explain every failure in it out loud. Interviewers *love* "here's where my agent fails and why."
+4. Read `evals/report.md` (Sonnet scored 20/20 on your subscription). Then run `make eval MODEL=claude-cli:haiku` and explain every failure out loud. Interviewers *love* "here's where my agent fails and why", and a perfect score doesn't give you that story, but a smaller model will.

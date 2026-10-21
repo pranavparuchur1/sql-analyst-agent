@@ -57,8 +57,8 @@ Dashed edges are decided at runtime: `classify` and `human_review` route with `C
 - **Human-in-the-loop:** `interrupt()` pauses the graph. Approve, reject, or edit the SQL, and edits are re-validated.
 - **Conversation memory:** a SQLite checkpointer per `thread_id`. Answers are stored together with the SQL used, so follow-ups refine the previous query.
 - **Time travel:** every step is a checkpoint, exposed through `GET /threads/{id}/history`.
-- **Provider-agnostic:** `LLM_MODEL=openai:...` or `anthropic:...` through `init_chat_model`.
-- **Offline test suite:** 54 tests, no API key, no cost, using a scripted fake LLM against a real seeded database.
+- **Provider-agnostic:** `LLM_MODEL=openai:...` or `anthropic:...` through `init_chat_model`, or `claude-cli:sonnet` to run on a Claude subscription through headless Claude Code, with no API key.
+- **Offline test suite:** 60 tests, no API key, no cost, using a scripted fake LLM against a real seeded database.
 - **Eval harness:** execution accuracy on a 20-question golden set, by difficulty, with attempts, first-try rate and latency.
 
 ## Quickstart
@@ -66,13 +66,15 @@ Dashed edges are decided at runtime: `classify` and `human_review` route with `C
 ```bash
 git clone https://github.com/<you>/sql-analyst-agent && cd sql-analyst-agent
 make setup              # venv + deps + seeds data/shop.db
-cp .env.example .env    # then set LLM_MODEL and the matching API key
-make test               # 54 offline tests, no key needed
+cp .env.example .env    # then set LLM_MODEL and the matching API key (or claude-cli:sonnet, below)
+make test               # 60 offline tests, no key needed
 make cli                # chat in the terminal
 make api                # http://localhost:8000/docs
 ```
 
 Without `make`: `python -m venv .venv`, activate it, `pip install -r requirements.txt`, `python -m data.seed`, then `python -m app.cli` or `uvicorn app.api:app`.
+
+**No API key? Use a Claude subscription.** If [Claude Code](https://claude.com/claude-code) is installed and signed in (`claude auth login`), set `LLM_MODEL=claude-cli:sonnet` (or `opus` / `haiku`). Each LLM call then runs headless `claude -p` with tools disabled and its own short system prompt, and counts against your plan's usage limits instead of API billing. API credentials are stripped from the child process, so it can't fall back to API billing. This mode is for personal development and evals; a deployed service should use an API key. See [app/claude_cli_llm.py](app/claude_cli_llm.py).
 
 Docker (seeds the DB at build time; checkpoints persist in a named volume):
 
@@ -128,14 +130,25 @@ curl -s localhost:8000/health
 
 ## Eval results
 
-**Not yet measured against a live model.** This repo was built without an API key, so `evals/report.md` is a placeholder until you run:
+Measured on 2026-10-21 with Claude Sonnet 5.5 through a Claude subscription (`claude-cli:sonnet`, 4 parallel workers). The full report is in [evals/report.md](evals/report.md).
+
+| Metric | Value |
+|---|---|
+| Execution accuracy | **100% (20/20)**: easy 6/6, medium 8/8, hard 6/6 |
+| First-try success | 100% (20/20), avg 1.00 SQL attempts |
+| LLM calls per question | 4.0 (router, tables, SQL, answer) |
+| API-equivalent cost | $0.027 per question ($0.54 total, not billed on a subscription) |
+| Latency p50 / p95 | 19.7s / 23.7s (includes starting a CLI process for every call; API latency would be lower) |
+
+**How to read this honestly:** a perfect score means this golden set is **saturated** for a frontier model. It's useful as a regression test, but it can't tell good prompts from great ones. And because every query was right first time, **the eval never exercised the self-correction loop**. That loop is covered only by the offline tests. The next step is a harder set: ambiguous wording, misleading column names, multi-step questions, and questions that *should* be refused or should ask for clarification. Smaller models (`make eval MODEL=claude-cli:haiku`) would also show more spread.
 
 ```bash
 make eval                                   # uses LLM_MODEL
-make eval MODEL=openai:gpt-4.1-mini         # compare models
+make eval MODEL=claude-cli:haiku            # compare models (subscription mode)
+make eval MODEL=openai:gpt-4.1-mini         # or any API model
 ```
 
-What *is* verified: all 20 gold queries (6 easy, 8 medium, 6 hard, covering multi-join, CTE + window function, NOT EXISTS and period-over-period growth) run and return non-empty, non-NULL results (`make check-gold`). Two candidate questions were replaced because their gold answers were 0 or empty, which a broken query could match by accident. The scorer itself is unit-tested.
+The gold set is verified too: all 20 gold queries (6 easy, 8 medium, 6 hard, covering multi-join, CTE + window function, NOT EXISTS and period-over-period growth) run and return non-empty, non-NULL results (`make check-gold`). Two candidate questions were replaced because their gold answers were 0 or empty, which a broken query could match by accident. The scorer itself is unit-tested.
 
 **Metric:** a prediction counts as correct if every gold result column matches some predicted column (sorted values, floats rounded to 2 dp). This tolerates column order, row order and extra columns. **Known limitation:** columns are compared independently, so it doesn't verify row pairing (a test documents this). 20 questions also give wide confidence intervals: one question is 5 points.
 

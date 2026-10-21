@@ -196,7 +196,7 @@ def main() -> None:
         note = (
             f"Run on a Claude subscription via `claude -p` with {args.workers} parallel worker(s). "
             "API-equivalent cost is what these tokens would cost on the API; nothing was billed. "
-            "Latency includes ~20s of CLI process start-up per LLM call, so it is far higher than API latency."
+            "Latency includes starting a `claude` CLI process for every LLM call, so it is higher than API latency."
         )
     report = summarize(outcomes, model, extra, note)
     args.out.write_text(report, encoding="utf-8")

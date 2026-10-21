@@ -1,8 +1,21 @@
-# Eval report: not yet run
+# Eval report: `claude-cli:sonnet`
 
-No eval has been run against a real model yet: this repo was built without an API key.
-Run `make eval` (or `python -m evals.run_evals --model <provider:model>`) to overwrite this file
-with measured execution accuracy, first-try success, attempts and latency.
+Run at 2026-10-21 07:35. 20 questions, each on a fresh thread, approvals auto-granted.
 
-The gold set itself is verified: `python -m evals.run_evals --check-gold` runs all 20 gold
-queries and `tests/test_evals.py` asserts each returns non-empty, non-NULL results.
+| Metric | Value |
+|---|---|
+| Execution accuracy | 100% (20/20) |
+| - easy | 100% (6/6) |
+| - medium | 100% (8/8) |
+| - hard | 100% (6/6) |
+| First-try success | 100% (20/20) |
+| Avg SQL attempts | 1.00 |
+| Latency p50 / p95 | 19.7s / 23.7s |
+| LLM calls (avg per question) | 80 (4.0) |
+| API-equivalent cost (total / per question) | $0.54 / $0.027 |
+
+Run on a Claude subscription via `claude -p` with 4 parallel worker(s). API-equivalent cost is what these tokens would cost on the API; nothing was billed. Latency includes starting a `claude` CLI process for every LLM call, so it is higher than API latency.
+
+## Failures
+
+None.
