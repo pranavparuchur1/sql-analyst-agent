@@ -20,7 +20,9 @@ class Settings(BaseSettings):
 
     # "provider:model" so switching OpenAI <-> Anthropic is a config change, not a code change.
     llm_model: str = "anthropic:claude-sonnet-5-5"
-    llm_temperature: float = 0.0
+    # Unset by default: some newer models reject non-default temperatures. Set 0 for
+    # older models when you want the most repeatable SQL.
+    llm_temperature: float | None = None
 
     db_path: Path = ROOT / "data" / "shop.db"
     checkpoint_db: Path = ROOT / "data" / "checkpoints.db"
@@ -47,4 +49,5 @@ def get_llm(settings: Settings | None = None, model: str | None = None) -> BaseC
     from langchain.chat_models import init_chat_model
 
     settings = settings or get_settings()
-    return init_chat_model(model or settings.llm_model, temperature=settings.llm_temperature)
+    kwargs = {} if settings.llm_temperature is None else {"temperature": settings.llm_temperature}
+    return init_chat_model(model or settings.llm_model, **kwargs)
