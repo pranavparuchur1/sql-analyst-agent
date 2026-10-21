@@ -18,6 +18,7 @@ import statistics
 import time
 import uuid
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -96,7 +97,7 @@ def _pct(n: int, d: int) -> str:
     return f"{100 * n / d:.0f}% ({n}/{d})" if d else "n/a"
 
 
-def summarize(outcomes: list[Outcome], model: str) -> str:
+def summarize(outcomes: list[Outcome], model: str, extra_rows: list[str] | None = None, note: str = "") -> str:
     total = len(outcomes)
     correct = sum(o.correct for o in outcomes)
     first_try = sum(o.correct and o.attempts == 1 for o in outcomes)
@@ -120,7 +121,9 @@ def summarize(outcomes: list[Outcome], model: str) -> str:
         f"| First-try success | {_pct(first_try, total)} |",
         f"| Avg SQL attempts | {statistics.mean(attempted):.2f} |" if attempted else "| Avg SQL attempts | n/a |",
         f"| Latency p50 / p95 | {statistics.median(latencies):.1f}s / {p95:.1f}s |" if latencies else "| Latency | n/a |",
+        *(extra_rows or []),
         "",
+        *([note, ""] if note else []),
         "## Failures",
         "",
     ]  # fmt: skip
@@ -153,6 +156,7 @@ def main() -> None:
     parser.add_argument("--model", default=None, help="Override LLM_MODEL, e.g. anthropic:claude-haiku-5-5")
     parser.add_argument("--ids", default=None, help="Comma-separated subset, e.g. e1,m3,h2")
     parser.add_argument("--out", type=Path, default=REPORT)
+    parser.add_argument("--workers", type=int, default=1, help="Questions run in parallel (helps slow claude-cli mode).")
     parser.add_argument("--check-gold", action="store_true", help="Only verify that every gold query runs.")
     args = parser.parse_args()
 
@@ -167,15 +171,34 @@ def main() -> None:
         return
 
     model = args.model or settings.llm_model
-    graph = build_graph(llm=get_llm(settings, model), db=db, settings=settings, checkpointer=InMemorySaver())
-    outcomes = []
-    for item in items:
-        outcome = run_one(graph, db, item)
-        outcomes.append(outcome)
-        mark = "PASS" if outcome.correct else "FAIL"
-        print(f"{mark} {item['id']:<4} attempts={outcome.attempts} {outcome.latency_s:5.1f}s  {item['question'][:60]}")
+    llm = get_llm(settings, model)
+    graph = build_graph(llm=llm, db=db, settings=settings, checkpointer=InMemorySaver())
 
-    report = summarize(outcomes, model)
+    def one(item: dict[str, Any]) -> Outcome:
+        outcome = run_one(graph, db, item)
+        mark = "PASS" if outcome.correct else "FAIL"
+        print(f"{mark} {item['id']:<4} attempts={outcome.attempts} {outcome.latency_s:5.1f}s  {item['question'][:60]}",
+              flush=True)  # fmt: skip
+        return outcome
+
+    # Each question has its own thread_id, so runs are independent and safe to parallelise.
+    with ThreadPoolExecutor(max_workers=max(1, args.workers)) as pool:
+        outcomes = list(pool.map(one, items))
+
+    extra, note = [], ""
+    calls = getattr(llm, "calls", None)  # populated by ClaudeCLIModel (subscription mode)
+    if calls:
+        extra = [
+            f"| LLM calls (avg per question) | {len(calls)} ({len(calls) / len(items):.1f}) |",
+            f"| API-equivalent cost (total / per question) | ${sum(c.api_equiv_usd for c in calls):.2f} / "
+            f"${sum(c.api_equiv_usd for c in calls) / len(items):.3f} |",
+        ]
+        note = (
+            f"Run on a Claude subscription via `claude -p` with {args.workers} parallel worker(s). "
+            "API-equivalent cost is what these tokens would cost on the API; nothing was billed. "
+            "Latency includes ~20s of CLI process start-up per LLM call, so it is far higher than API latency."
+        )
+    report = summarize(outcomes, model, extra, note)
     args.out.write_text(report, encoding="utf-8")
     print("\n" + report.split("## Failures")[0])
     print(f"Report written to {args.out}")
